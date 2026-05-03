@@ -38,7 +38,7 @@ The removed experimental folders were:
 
 Close Anytype before running either tool. Both tools refuse to run if an `anytype` process appears in `/proc`.
 
-Make full backups of both `--user-data-dir` directories first. These tools write directly into local Anytype data.
+Make full backups of both the old and the new vault before trying this. At minimum, back up both complete `--user-data-dir` directories, not just the individual `data/<accountId>` folders. These tools write directly into local Anytype data.
 
 Do not paste mnemonics into chat, shell history, command arguments, or environment variables. The tools prompt for mnemonics using hidden terminal input.
 
