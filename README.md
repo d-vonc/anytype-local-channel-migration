@@ -1,8 +1,14 @@
-# Anytype Local Channel Migration
+# Anytype Channel Migration Experiment
 
-Experimental helpers for manually moving an Anytype Local Only space/channel from one vault identity to another vault identity.
+Experimental helpers for manually moving an Anytype space/channel from one vault identity to another vault identity.
 
-This is not an official Anytype workflow. It started as a practical, curiosity-driven attempt to solve a local history/channel migration problem between two vault identities. During that experiment, it also unexpectedly showed that Local Only ACL/shared-channel mechanics can work when the destination vault is manually added to the space ACL and given a local `SpaceView`.
+This is not an official Anytype workflow. It started as a practical, curiosity-driven attempt to solve a history-preserving migration problem between two vault identities: export/import behaves more like snapshot migration, while collaboration-based migration can potentially preserve object history and author attribution.
+
+The original code-side issue is here:
+
+https://github.com/anyproto/anytype-heart/issues/3137
+
+My concrete test case used two Local Only vaults because Local Only invitation-link based sharing was not available in the UI path I was exploring. Local Only is therefore the initial use case, not the whole point of the tool. A surprising side effect of the experiment was that the underlying ACL/shared-channel mechanics still worked in this setup when the destination vault was manually added to the space ACL and given a local `SpaceView`.
 
 Related local notes in the parent repobundle:
 
