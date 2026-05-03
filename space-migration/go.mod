@@ -74,6 +74,6 @@ require (
 	storj.io/drpc v0.0.34 // indirect
 )
 
-replace github.com/anyproto/anytype-heart => ../../anyproto-repos-sorted/core/anytype-heart
+replace github.com/anyproto/anytype-heart => ../../../anyproto-repos-sorted/core/anytype-heart
 
 replace github.com/btcsuite/btcutil => github.com/btcsuite/btcd/btcutil v1.1.5

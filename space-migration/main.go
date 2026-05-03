@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/fs"
@@ -24,17 +25,19 @@ import (
 )
 
 const (
-	oldVault = "[hier stond het oude vault-pad]"
-	newVault = "[hier stond het nieuwe vault-pad]"
-	spaceID  = "[hier stond de space id]"
-
-	expectedOldAccount = "[hier stond het oude vault id]"
-	expectedNewAccount = "[hier stond het nieuwe vault id]"
-
 	metadataPath = "m/SLIP-0021/anytype/account/metadata"
 )
 
+var (
+	oldVault           = flag.String("old-vault", "", "Path to old data/<account> vault directory")
+	newVault           = flag.String("new-vault", "", "Path to new data/<account> vault directory")
+	spaceID            = flag.String("space-id", "", "Space/channel ID to migrate")
+	expectedOldAccount = flag.String("old-account", "", "Expected old account ID derived from the old mnemonic")
+	expectedNewAccount = flag.String("new-account", "", "Expected new account ID derived from the new mnemonic")
+)
+
 func main() {
+	flag.Parse()
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
@@ -42,6 +45,9 @@ func main() {
 }
 
 func run() error {
+	if err := requireFlags(); err != nil {
+		return err
+	}
 	ctx := context.Background()
 	oldMnemonic, err := readSecret("Old mnemonic")
 	if err != nil {
@@ -52,11 +58,11 @@ func run() error {
 		return err
 	}
 
-	oldKeys, err := derive(oldMnemonic, expectedOldAccount)
+	oldKeys, err := derive(oldMnemonic, *expectedOldAccount)
 	if err != nil {
 		return fmt.Errorf("old mnemonic: %w", err)
 	}
-	newKeys, err := derive(newMnemonic, expectedNewAccount)
+	newKeys, err := derive(newMnemonic, *expectedNewAccount)
 	if err != nil {
 		return fmt.Errorf("new mnemonic: %w", err)
 	}
@@ -75,11 +81,11 @@ func run() error {
 	}
 	defer os.RemoveAll(tmp)
 
-	tmpStoreDir := filepath.Join(tmp, spaceID)
+	tmpStoreDir := filepath.Join(tmp, *spaceID)
 	if err := os.MkdirAll(tmpStoreDir, 0700); err != nil {
 		return err
 	}
-	oldStore := filepath.Join(oldVault, "spaceStoreNew", spaceID, "store.db")
+	oldStore := filepath.Join(*oldVault, "spaceStoreNew", *spaceID, "store.db")
 	tmpStore := filepath.Join(tmpStoreDir, "store.db")
 	if err := copyFile(oldStore, tmpStore, true); err != nil {
 		return fmt.Errorf("copy old store to temp: %w", err)
@@ -92,7 +98,7 @@ func run() error {
 	fmt.Printf("acl head after add: %s\n", head)
 
 	stamp := time.Now().Format("20060102-150405")
-	newSpaceDir := filepath.Join(newVault, "spaceStoreNew", spaceID)
+	newSpaceDir := filepath.Join(*newVault, "spaceStoreNew", *spaceID)
 	if err := backupIfExists(newSpaceDir, stamp); err != nil {
 		return err
 	}
@@ -103,8 +109,8 @@ func run() error {
 		return fmt.Errorf("install new space store: %w", err)
 	}
 
-	oldObjectStore := filepath.Join(oldVault, "objectstore", spaceID)
-	newObjectStore := filepath.Join(newVault, "objectstore", spaceID)
+	oldObjectStore := filepath.Join(*oldVault, "objectstore", *spaceID)
+	newObjectStore := filepath.Join(*newVault, "objectstore", *spaceID)
 	if err := backupIfExists(newObjectStore, stamp); err != nil {
 		return err
 	}
@@ -112,12 +118,31 @@ func run() error {
 		return fmt.Errorf("copy objectstore: %w", err)
 	}
 
-	if err := copyDir(filepath.Join(oldVault, "flatfs"), filepath.Join(newVault, "flatfs"), false); err != nil {
+	if err := copyDir(filepath.Join(*oldVault, "flatfs"), filepath.Join(*newVault, "flatfs"), false); err != nil {
 		return fmt.Errorf("merge flatfs: %w", err)
 	}
 
 	fmt.Println("storage copied with updated ACL")
 	fmt.Println("note: this may still need a SpaceView registration in the new techspace before the UI lists it")
+	return nil
+}
+
+func requireFlags() error {
+	missing := []string{}
+	for name, value := range map[string]string{
+		"old-vault":   *oldVault,
+		"new-vault":   *newVault,
+		"space-id":    *spaceID,
+		"old-account": *expectedOldAccount,
+		"new-account": *expectedNewAccount,
+	} {
+		if strings.TrimSpace(value) == "" {
+			missing = append(missing, "-"+name)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("missing required flags: %s", strings.Join(missing, ", "))
+	}
 	return nil
 }
 
@@ -177,7 +202,7 @@ func addAclAccount(ctx context.Context, storePath string, oldSignKey crypto.Priv
 	}
 	defer db.Close()
 
-	st, err := spacestorage.New(ctx, spaceID, db)
+	st, err := spacestorage.New(ctx, *spaceID, db)
 	if err != nil {
 		return "", err
 	}

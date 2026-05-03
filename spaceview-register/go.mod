@@ -250,7 +250,7 @@ require (
 	zombiezen.com/go/sqlite v1.4.2 // indirect
 )
 
-replace github.com/anyproto/anytype-heart => ../../anyproto-repos-sorted/core/anytype-heart
+replace github.com/anyproto/anytype-heart => ../../../anyproto-repos-sorted/core/anytype-heart
 
 replace github.com/ipfs/go-ds-flatfs => github.com/anyproto/go-ds-flatfs v0.0.0-20250828183910-d49f5b2d567f
 
