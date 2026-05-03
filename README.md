@@ -8,7 +8,7 @@ The original code-side issue is here:
 
 https://github.com/anyproto/anytype-heart/issues/3137
 
-My concrete test case used two Local Only vaults because Local Only invitation-link based sharing was not available in the UI path I was exploring. Local Only is therefore the initial use case, not the whole point of the tool. A surprising side effect of the experiment was that the underlying ACL/shared-channel mechanics still worked in this setup when the destination vault was manually added to the space ACL and given a local `SpaceView`. That was unexpected because the community thread below includes the official/current-product answer that Local Only invitation-link sharing is not supported, while my later replies in that thread point out conflicting documentation/signals:
+My concrete test case used two Local Only vaults because Local Only invitation-link based sharing was not available in the UI path I was exploring. A surprising side effect of the experiment was that the underlying ACL/shared-channel mechanics still worked in this setup. That was unexpected because the community thread below includes the official/current-product answer that Shared Channels should not work in Local Only, while my later replies in that thread point out conflicting documentation/signals:
 
 https://community.anytype.io/t/invitation-link-to-channel-is-not-working-peer-to-peer-local-only/30482
 
