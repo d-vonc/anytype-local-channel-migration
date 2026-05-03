@@ -12,12 +12,6 @@ My concrete test case used two Local Only vaults because Local Only invitation-l
 
 https://community.anytype.io/t/invitation-link-to-channel-is-not-working-peer-to-peer-local-only/30482
 
-Related local notes in the parent repobundle:
-
-- `forum-drafts/2026-05-02-community-feature-request-history-migration.md`
-- `issue-drafts/2026-05-02-anytype-heart-history-migration.md`
-- `community-threads-engaged-with/invitation-link-to-channel-is-not-working-peer-to-peer-local-only-30482.md`
-
 ## What Worked
 
 The working route used two tools:
@@ -52,17 +46,19 @@ Do not paste mnemonics into chat, shell history, command arguments, or environme
 
 ## Build
 
-This repo is intended to live inside the Anytype repobundle as:
+The tools depend on a local checkout of `anytype-heart`. In the setup used for this experiment, this repo was checked out at:
 
 ```sh
 local-tools/channel-migration
 ```
 
-The Go modules use a local `replace` pointing to:
+and the Go modules use a local `replace` pointing to:
 
 ```sh
 ../../../anyproto-repos-sorted/core/anytype-heart
 ```
+
+If your checkout layout is different, update the `replace github.com/anyproto/anytype-heart => ...` line in both Go modules before building.
 
 Build:
 
