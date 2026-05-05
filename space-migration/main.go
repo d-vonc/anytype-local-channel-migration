@@ -13,6 +13,8 @@ import (
 	"time"
 
 	anystore "github.com/anyproto/any-store"
+	"github.com/anyproto/any-store/anyenc"
+	"github.com/anyproto/any-store/query"
 	"github.com/anyproto/any-sync/commonspace/object/accountdata"
 	"github.com/anyproto/any-sync/commonspace/object/acl/list"
 	"github.com/anyproto/any-sync/commonspace/object/acl/recordverifier"
@@ -117,6 +119,11 @@ func run() error {
 	if err := copyDir(oldObjectStore, newObjectStore, true); err != nil {
 		return fmt.Errorf("copy objectstore: %w", err)
 	}
+	if stats, err := repairBindID(ctx, filepath.Join(*newVault, "objectstore", "objects.db"), filepath.Join(newObjectStore, "objects.db"), *spaceID); err != nil {
+		return fmt.Errorf("repair bindId resolver index: %w", err)
+	} else {
+		fmt.Printf("bindId repair: space objects=%d existing=%d added=%d skipped=%d\n", stats.SpaceObjects, stats.ExistingBindings, stats.AddedBindings, stats.SkippedObjects)
+	}
 
 	if err := copyDir(filepath.Join(*oldVault, "flatfs"), filepath.Join(*newVault, "flatfs"), false); err != nil {
 		return fmt.Errorf("merge flatfs: %w", err)
@@ -125,6 +132,101 @@ func run() error {
 	fmt.Println("storage copied with updated ACL")
 	fmt.Println("note: this may still need a SpaceView registration in the new techspace before the UI lists it")
 	return nil
+}
+
+type bindStats struct {
+	SpaceObjects     int
+	ExistingBindings int
+	AddedBindings    int
+	SkippedObjects   int
+}
+
+func repairBindID(ctx context.Context, commonDBPath, spaceDBPath, spaceID string) (bindStats, error) {
+	spaceDB, err := anystore.Open(ctx, spaceDBPath, &anystore.Config{ReadConnections: 1})
+	if err != nil {
+		return bindStats{}, fmt.Errorf("open per-space objectstore: %w", err)
+	}
+	defer spaceDB.Close()
+
+	objects, err := spaceDB.OpenCollection(ctx, "objects")
+	if err != nil {
+		return bindStats{}, fmt.Errorf("open objects collection: %w", err)
+	}
+
+	commonDB, err := anystore.Open(ctx, commonDBPath, nil)
+	if err != nil {
+		return bindStats{}, fmt.Errorf("open common objectstore: %w", err)
+	}
+	defer commonDB.Close()
+
+	bindID, err := commonDB.Collection(ctx, "bindId")
+	if err != nil {
+		return bindStats{}, fmt.Errorf("open bindId collection: %w", err)
+	}
+
+	iter, err := objects.Find(nil).Iter(ctx)
+	if err != nil {
+		return bindStats{}, fmt.Errorf("iterate objects collection: %w", err)
+	}
+	defer iter.Close()
+
+	tx, err := commonDB.WriteTx(ctx)
+	if err != nil {
+		return bindStats{}, fmt.Errorf("start bindId transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	var stats bindStats
+	txCtx := tx.Context()
+	for iter.Next() {
+		doc, err := iter.Doc()
+		if err != nil {
+			return bindStats{}, fmt.Errorf("read object document: %w", err)
+		}
+		objectID := doc.Value().GetString("id")
+		if objectID == "" {
+			continue
+		}
+		if objectID == "_missing_object" {
+			stats.SkippedObjects++
+			continue
+		}
+		stats.SpaceObjects++
+
+		current, err := bindID.FindId(txCtx, objectID)
+		switch {
+		case err == nil:
+			currentSpaceID := current.Value().GetString("b")
+			if currentSpaceID == spaceID {
+				stats.ExistingBindings++
+				continue
+			}
+			if currentSpaceID != "" {
+				return bindStats{}, fmt.Errorf("object %s is already bound to another space: %s", objectID, currentSpaceID)
+			}
+		case !errors.Is(err, anystore.ErrDocNotFound):
+			return bindStats{}, fmt.Errorf("read existing bindId for %s: %w", objectID, err)
+		}
+
+		res, err := bindID.UpsertId(txCtx, objectID, query.ModifyFunc(func(a *anyenc.Arena, v *anyenc.Value) (*anyenc.Value, bool, error) {
+			if v.GetString("b") == spaceID {
+				return v, false, nil
+			}
+			v.Set("b", a.NewString(spaceID))
+			return v, true, nil
+		}))
+		if err != nil {
+			return bindStats{}, fmt.Errorf("bind object %s: %w", objectID, err)
+		}
+		stats.AddedBindings += res.Modified
+	}
+	if err := iter.Err(); err != nil {
+		return bindStats{}, fmt.Errorf("object iterator: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return bindStats{}, fmt.Errorf("commit bindId transaction: %w", err)
+	}
+	return stats, nil
 }
 
 func requireFlags() error {
@@ -266,12 +368,26 @@ func ensureAnytypeClosed() error {
 		if err != nil || len(cmdline) == 0 {
 			continue
 		}
-		cmd := strings.ToLower(strings.ReplaceAll(string(cmdline), "\x00", " "))
-		if strings.Contains(cmd, "anytype") {
+		args := strings.Split(strings.TrimRight(string(cmdline), "\x00"), "\x00")
+		if len(args) == 0 {
+			continue
+		}
+		name := strings.ToLower(filepath.Base(args[0]))
+		if isAnytypeProcess(name) {
+			cmd := strings.ReplaceAll(string(cmdline), "\x00", " ")
 			return fmt.Errorf("Anytype process appears to be running: %s", strings.TrimSpace(cmd))
 		}
 	}
 	return nil
+}
+
+func isAnytypeProcess(name string) bool {
+	switch name {
+	case "anytype", "anytypehelper", "anytype helper":
+		return true
+	default:
+		return strings.HasPrefix(name, "anytype-") || strings.HasPrefix(name, "anytype_")
+	}
 }
 
 func backupIfExists(path, stamp string) error {

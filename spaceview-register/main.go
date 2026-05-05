@@ -124,10 +124,24 @@ func ensureAnytypeClosed() error {
 		if err != nil || len(cmdline) == 0 {
 			continue
 		}
-		cmd := strings.ToLower(strings.ReplaceAll(string(cmdline), "\x00", " "))
-		if strings.Contains(cmd, "anytype") {
+		args := strings.Split(strings.TrimRight(string(cmdline), "\x00"), "\x00")
+		if len(args) == 0 {
+			continue
+		}
+		name := strings.ToLower(filepath.Base(args[0]))
+		if isAnytypeProcess(name) {
+			cmd := strings.ReplaceAll(string(cmdline), "\x00", " ")
 			return fmt.Errorf("Anytype process appears to be running: %s", strings.TrimSpace(cmd))
 		}
 	}
 	return nil
+}
+
+func isAnytypeProcess(name string) bool {
+	switch name {
+	case "anytype", "anytypehelper", "anytype helper":
+		return true
+	default:
+		return strings.HasPrefix(name, "anytype-") || strings.HasPrefix(name, "anytype_")
+	}
 }

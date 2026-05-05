@@ -23,6 +23,7 @@ The working route used two tools:
    - Adds the new account to the space ACL with writer permissions, signed by the old account key.
    - Installs the updated space store into the new vault.
    - Copies the per-space `objectstore` projection and merges `flatfs`.
+   - Rebuilds the account-level `bindId` resolver entries for the migrated space from the copied per-space `objectstore`.
    - Prints the new ACL head.
 
 2. `spaceview-register`
@@ -100,6 +101,8 @@ Then register the space in the new vault tech-space:
 Open Anytype with the new `--user-data-dir` after both steps complete.
 
 ## Known Limitations
+
+`space-migration` now repairs the local `bindId` resolver index after copying the per-space objectstore. This is local derived state, not channel content. Without it, the migrated space can be visible while some object/type create or open flows fail because Heart cannot resolve an object ID back to its space. The `_missing_object` placeholder is skipped during this repair.
 
 The migrated/new participant may appear as `Untitled` to the original vault. This tool only injects the ACL/account metadata needed for access and creates the destination `SpaceView`; it does not fully reproduce the official profile/name propagation path.
 
